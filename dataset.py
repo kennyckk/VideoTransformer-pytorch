@@ -1,5 +1,6 @@
 import json
 import random
+import os
 
 import decord
 import numpy as np
@@ -88,7 +89,7 @@ def load_annotations_dog(ann_file, num_class, num_samples_per_cls): # the anotat
 
 	for row in range(len(fin)):
 		sample = {}
-		sample['videos'] = frame_dir[row] + ".mp4" #all frame_dir are mp4 format
+		sample['video'] = frame_dir[row] + ".mp4" #all frame_dir are mp4 format
 
 		# extract the 2 labels from the 4 emotions
 		class_name = labels[row]
@@ -159,6 +160,52 @@ class DecordInit(object):
 					f'sr={self.sr},'
 					f'num_threads={self.num_threads})')
 		return repr_str
+
+class DogDataset(torch.utils.data.Dataset):
+	"""Load the Dog Video Files"""
+	def __init__(self,
+				 configs,
+				 annotation_path,
+				 transform=None,
+				 temporal_sample=None):
+		self.configs = configs
+		self.data = load_annotations_dog(annotation_path, self.configs.num_class, self.configs.num_samples_per_cls)
+
+		self.transform = transform
+		self.temporal_sample = temporal_sample
+		self.target_video_len = self.configs.num_frames
+		#self.objective = self.configs.objective
+		self.v_decoder = DecordInit()
+	def __getitem__(self, index):
+		while True:
+			try:
+				path = self.data[index]['video']
+				path=os.path.join('./data/videos', path) #correct the path to data folder
+				v_reader = self.v_decoder(path)
+				total_frames = len(v_reader)
+
+				# Sampling video frames
+				start_frame_ind, end_frame_ind = self.temporal_sample(total_frames)
+				assert end_frame_ind - start_frame_ind >= self.target_video_len
+				frame_indice = np.linspace(start_frame_ind, end_frame_ind - 1, self.target_video_len, dtype=int)
+				video = v_reader.get_batch(frame_indice).asnumpy()
+				del v_reader
+				break
+			except Exception as e:
+				print(e)
+				index = random.randint(0, len(self.data) - 1)
+
+		# Video align transform: T C H W
+		with torch.no_grad():
+			video = torch.from_numpy(video).permute(0, 3, 1, 2)
+			if self.transform is not None:
+				video = self.transform(video)
+
+		label = self.data[index]['label'] # only supervise objective is doing
+
+		return video, label
+	def __len__(self):
+		return len(self.data)
 
 
 class Kinetics(torch.utils.data.Dataset):
@@ -248,6 +295,11 @@ class Kinetics(torch.utils.data.Dataset):
 
 	def __len__(self):
 		return len(self.data)
+
+
+
+
+
 
 
 # if __name__ == '__main__':
