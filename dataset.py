@@ -4,6 +4,7 @@ import random
 import decord
 import numpy as np
 import torch
+import pandas as pd
 
 from einops import rearrange
 from skimage.feature import hog
@@ -61,6 +62,47 @@ def get_class_labels(num_class, anno_pth='./k400_classmap.json'):
 		for cls in class_labels_map:
 			cls_sample_cnt[cls] = 0
 		return class_labels_map, cls_sample_cnt
+
+
+def get_class_labels_dog(anno_pth='./dog_classmap.json'):
+	global class_labels_map, cls_sample_cnt
+
+	if class_labels_map is not None:
+		return class_labels_map, cls_sample_cnt
+	else:
+		cls_sample_cnt = {}
+		class_labels_map = load_annotation_data(anno_pth)
+		for cls in class_labels_map:
+			cls_sample_cnt[class_labels_map[cls]] = 0 # the 4 classes combined into 2 only
+		return class_labels_map, cls_sample_cnt
+
+def load_annotations_dog(ann_file, num_class, num_samples_per_cls): # the anotation is stored in csv format
+	dataset = []
+	class_to_idx, cls_sample_cnt = get_class_labels_dog()
+
+	#print(class_to_idx, cls_sample_cnt) # check correct map and count map
+	fin= pd.read_csv(ann_file, header=0)
+
+	labels = fin['label']
+	frame_dir = fin['video_id']
+
+	for row in range(len(fin)):
+		sample = {}
+		sample['videos'] = frame_dir[row] + ".mp4" #all frame_dir are mp4 format
+
+		# extract the 2 labels from the 4 emotions
+		class_name = labels[row]
+		class_idx = class_to_idx[str(class_name)]
+		class_index = int(class_idx)
+
+		# choose a class subset of whole dataset
+		if class_index < num_class:
+			sample['label'] = class_index
+			if cls_sample_cnt[class_idx] < num_samples_per_cls:
+				dataset.append(sample)
+				cls_sample_cnt[class_idx] += 1
+
+	return dataset
 
 
 def load_annotations(ann_file, num_class, num_samples_per_cls):
@@ -208,44 +250,44 @@ class Kinetics(torch.utils.data.Dataset):
 		return len(self.data)
 
 
-if __name__ == '__main__':
-	# Unit test for loading video and computing time cost
-	import data_transform as T
-	import time
-	path = './YABnJL_bDzw.mp4'
-	color_jitter = 0.4
-	auto_augment = 'rand-m9-mstd0.5-inc1'
-	scale = None
-	mean, std = (0.45, 0.45, 0.45), (0.225, 0.225, 0.225)
-	transform = T.create_video_transform(
-		input_size=224,
-		is_training=True,
-		scale=scale,
-		hflip=0.5,
-		color_jitter=color_jitter,
-		auto_augment=auto_augment,
-		interpolation='bicubic',
-		mean=mean,
-		std=std)
+# if __name__ == '__main__':
+# 	# Unit test for loading video and computing time cost
+# 	import data_transform as T
+# 	import time
+# 	path = './YABnJL_bDzw.mp4'
+# 	color_jitter = 0.4
+# 	auto_augment = 'rand-m9-mstd0.5-inc1'
+# 	scale = None
+# 	mean, std = (0.45, 0.45, 0.45), (0.225, 0.225, 0.225)
+# 	transform = T.create_video_transform(
+# 		input_size=224,
+# 		is_training=True,
+# 		scale=scale,
+# 		hflip=0.5,
+# 		color_jitter=color_jitter,
+# 		auto_augment=auto_augment,
+# 		interpolation='bicubic',
+# 		mean=mean,
+# 		std=std)
+#
+# 	v_decoder = DecordInit()
+# 	v_reader = v_decoder(path)
+# 	total_frames = len(v_reader)
+# 	target_video_len = 16
+# 	# Sampling video frames
+# 	temporal_sample = T.TemporalRandomCrop(target_video_len*16)
+# 	start_frame_ind, end_frame_ind = temporal_sample(total_frames)
+# 	frame_indice = np.linspace(start_frame_ind, end_frame_ind-1, target_video_len, dtype=int)
+# 	video = v_reader.get_batch(frame_indice).asnumpy()
+# 	del v_reader
+#
+# 	# Video align transform: T C H W
+# 	with torch.no_grad():
+# 		video = torch.from_numpy(video).permute(0,3,1,2)
+# 		if transform is not None:
+# 			video = transform(video)
 	
-	v_decoder = DecordInit()
-	v_reader = v_decoder(path)
-	total_frames = len(v_reader)
-	target_video_len = 16
-	# Sampling video frames
-	temporal_sample = T.TemporalRandomCrop(target_video_len*16)
-	start_frame_ind, end_frame_ind = temporal_sample(total_frames)
-	frame_indice = np.linspace(start_frame_ind, end_frame_ind-1, target_video_len, dtype=int)
-	video = v_reader.get_batch(frame_indice).asnumpy()
-	del v_reader
-	
-	# Video align transform: T C H W
-	with torch.no_grad():
-		video = torch.from_numpy(video).permute(0,3,1,2)
-		if transform is not None:
-			video = transform(video)
-	
-	show_processed_image(video.permute(0,2,3,1), save_dir='./', mean=mean, std=std)
+	#show_processed_image(video.permute(0,2,3,1), save_dir='./', mean=mean, std=std)
 	'''
 	mask_generator = CubeMaskGenerator(input_size=(8,14,14),min_num_patches=16)
 	counts = 1
