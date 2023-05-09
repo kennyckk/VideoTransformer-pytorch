@@ -169,7 +169,9 @@ class DogDataset(torch.utils.data.Dataset):
 				 transform=None,
 				 temporal_sample=None):
 		self.configs = configs
-		self.data = load_annotations_dog(annotation_path, self.configs.num_class, self.configs.num_samples_per_cls)
+		self.annotation_path = annotation_path
+		self.data = load_annotations_dog(self.annotation_path, self.configs.num_class, self.configs.num_samples_per_cls)
+
 
 		self.transform = transform
 		self.temporal_sample = temporal_sample
@@ -177,10 +179,11 @@ class DogDataset(torch.utils.data.Dataset):
 		#self.objective = self.configs.objective
 		self.v_decoder = DecordInit()
 	def __getitem__(self, index):
+		curr_path=os.path.dirname(self.annotation_path)
 		while True:
 			try:
 				path = self.data[index]['video']
-				path=os.path.join('./data/videos', path) #correct the path to data folder
+				path=os.path.join(curr_path,'videos', path) #correct the path to data folder
 				v_reader = self.v_decoder(path)
 				total_frames = len(v_reader)
 
