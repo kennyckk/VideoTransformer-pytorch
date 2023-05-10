@@ -13,7 +13,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 import torch
 
 
-from data_trainer import KineticsDataModule
+from data_trainer import DogDataModule
 from model_trainer import VideoTransformer
 from utils import print_on_rank_zero
 
@@ -182,7 +182,7 @@ def single_run():
 	do_eval = True if args.val_data_path is not None else False
 	do_test = True if args.test_data_path is not None else False
 	
-	data_module = KineticsDataModule(configs=args,
+	data_module = DogDataModule(configs=args,
 									 train_ann_path=args.train_data_path,
 									 val_ann_path=args.val_data_path,
 									 test_ann_path=args.test_data_path)
